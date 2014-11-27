@@ -4,10 +4,16 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import com.mongodb.DB;
+import com.mongodb.DBObject;
+import com.mongodb.MongoClient;
+import com.mongodb.util.JSON;
 
 import twitter4j.FilterQuery;
 import twitter4j.Query;
@@ -31,11 +37,33 @@ import twitter4j.conf.Configuration;
 import twitter4j.conf.ConfigurationBuilder;
 
 
+
 public class main {
 	private static ArrayList<TrendTopic> activeTrends;
 	private static TwitterStream twitterStream;
+	private static DB db;
+	private static int counter;
 
-	public static void main(String args[]) {
+	public static void main(String args[]){
+		counter = 0;
+		//twitterStream.cleanUp();
+		MongoClient mongoClient;
+		try {
+			mongoClient = new MongoClient();
+			db = mongoClient.getDB( "MyDataBase" );//vash dedomenwn
+		} catch (UnknownHostException e2) {
+			// TODO Auto-generated catch block
+			e2.printStackTrace();
+		}//sundeomaste me to server
+
+		
+		db.dropDatabase();
+		
+		db.createCollection("Trends", null);
+		
+		db.createCollection("Tweets", null);
+		
+		System.out.println(db.getCollection("Tweets").count());
 		ConfigurationBuilder cb = new ConfigurationBuilder();
 		cb.setDebugEnabled(true);
 		cb.setJSONStoreEnabled(true);
@@ -58,20 +86,9 @@ public class main {
 				String profileLocation = user.getLocation();
 				long tweetId = status.getId();
 				String content = status.getText();
-				String rawJSON = TwitterObjectFactory.getRawJSON(status);
-				try {
-					storeJSON(rawJSON, "/home/thanos/Desktop/JSON.txt");
-				} catch (IOException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-				System.out.println(username);
-
-				System.out.println(profileLocation);
-
-				System.out.println(tweetId);
-
-				System.out.println(content + "\n");
+				String rawJSON = TwitterObjectFactory.getRawJSON(status);//metatrepoume to tweet se JSON
+				DBObject dbObject = (DBObject) JSON.parse(rawJSON);// Dhmiourgoume apo to JSON antikeimeno gia th bash
+				db.getCollection("Tweets").insert(dbObject);// Eisagoume to antikeimeno sth vash
 
 			}
 
@@ -140,7 +157,7 @@ public class main {
 						System.out.println("gamithike o dias");
 					}
 					try {
-						Thread.sleep(5 * 60000);
+						Thread.sleep(300000);
 					} catch (InterruptedException e1) {
 						// TODO Auto-generated catch block
 						e1.printStackTrace();
@@ -218,9 +235,11 @@ public class main {
 
 			if (topic.expired()) {
 				activeTrends.remove(topic);
+				topic.saveToCollection(db.getCollection("Trends"));//to apo8hkeuoume sth vash dedomenwn
 				// write to mongoDB
 			}
 		}
 	}
+	
 
 }
