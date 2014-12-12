@@ -6,11 +6,15 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import com.mongodb.BasicDBObject;
 import com.mongodb.DB;
+import com.mongodb.DBCollection;
 import com.mongodb.DBObject;
 import com.mongodb.MongoClient;
 import com.mongodb.util.JSON;
@@ -57,13 +61,13 @@ public class main {
 		}//sundeomaste me to server
 
 		
-		db.dropDatabase();
+		db.dropDatabase(); // svhnoume gia arxikopoihsh
 		
 		db.createCollection("Trends", null);
-		
+
 		db.createCollection("Tweets", null);
 		
-		System.out.println(db.getCollection("Tweets").count());
+		//System.out.println(db.getCollection("Tweets").count());
 		ConfigurationBuilder cb = new ConfigurationBuilder();
 		cb.setDebugEnabled(true);
 		cb.setJSONStoreEnabled(true);
@@ -130,8 +134,10 @@ public class main {
 
 			@Override
 			public void run() {
+				long started = new Date().getTime();//arxh gia elegxo gia 3 meres
+				long now=new Date().getTime();
 				// TODO Auto-generated method stub
-				while (true) {
+				while (now - started <=  259200000) {
 
 					Trends trends;
 					Trend[] trendsArray;
@@ -157,51 +163,63 @@ public class main {
 						System.out.println("gamithike o dias");
 					}
 					try {
+						Thread.sleep(1000);
+						System.exit(0);
 						Thread.sleep(300000);
 					} catch (InterruptedException e1) {
 						// TODO Auto-generated catch block
 						e1.printStackTrace();
 					}
+					now = new Date().getTime();//ananewnw ton elegxo ths wras
 				}
+				// Na valoume ola ta activeTrends na exoun endTime to twrino meta tis 3 wres
+				
+				for(TrendTopic t :activeTrends){
+					t.setEndTime();
+					t.saveToCollection(db.getCollection("Trends"));
+				}
+				activeTrends.clear();
+				
 			}
 		});
 		t.start();
 	}
-
-	private static void storeJSON(String rawJSON, String fileName)
-			throws IOException {
-		FileOutputStream fos = null;
-		OutputStreamWriter osw = null;
-		BufferedWriter bw = null;
-		try {
-			fos = new FileOutputStream(fileName,true);
-			osw = new OutputStreamWriter(fos, "UTF-8");
-			bw = new BufferedWriter(osw);
-			bw.write(rawJSON);
-			bw.write(System.getProperty("line.separator"));
-			bw.write(System.getProperty("line.separator"));
-			bw.flush();
-		} finally {
-			if (bw != null) {
-				try {
-					bw.close();
-				} catch (IOException ignore) {
-				}
-			}
-			if (osw != null) {
-				try {
-					osw.close();
-				} catch (IOException ignore) {
-				}
-			}
-			if (fos != null) {
-				try {
-					fos.close();
-				} catch (IOException ignore) {
-				}
-			}
-		}
-	}
+//	
+//	private static void storeJSON(String rawJSON, String fileName)
+//			throws IOException {
+//		FileOutputStream fos = null;
+//		OutputStreamWriter osw = null;
+//		BufferedWriter bw = null;
+//		try {
+//			fos = new FileOutputStream(fileName,true);
+//			osw = new OutputStreamWriter(fos, "UTF-8");
+//			bw = new BufferedWriter(osw);
+//			bw.write(rawJSON);
+//			bw.write(System.getProperty("line.separator"));
+//			bw.write(System.getProperty("line.separator"));
+//			bw.flush();
+//		} finally {
+//			if (bw != null) {
+//				try {
+//					bw.close();
+//				} catch (IOException ignore) {
+//				}
+//			}
+//			if (osw != null) {
+//				try {
+//					osw.close();
+//				} catch (IOException ignore) {
+//				}
+//			}
+//			if (fos != null) {
+//				try {
+//					fos.close();
+//				} catch (IOException ignore) {
+//				}
+//			}
+//		}
+//	}
+	
 
 	private static void updateActive(Trend[] trendsArray) {
 		// insert new topics to active
@@ -219,27 +237,34 @@ public class main {
 				// if the new trend was not found , add it to active
 				activeTrends.add(new TrendTopic(t.getName()));
 			}
-
 		}
-
+		
+		//tempcode
+		DBCollection col = db.getCollection("Trends");
+		activeTrends.get(0).saveToCollection(col);
+		
+		col.setObjectClass(BasicDBObject.class);
+		BasicDBObject one = (BasicDBObject) col.findOne();
+		System.out.println(one);
+		System.out.println(new TrendTopic(one));
+		
 		// remove active topics tha expired
-		for (TrendTopic topic : activeTrends) {
-
-			boolean found = false;
-			for (Trend t : trendsArray) {
-				if (topic.isSameTopic(t.getName())
-						&& (topic.getEndTime() == null)) {
-					topic.setEndTime();
-				}
-			}
-
-			if (topic.expired()) {
-				activeTrends.remove(topic);
-				topic.saveToCollection(db.getCollection("Trends"));//to apo8hkeuoume sth vash dedomenwn
-				// write to mongoDB
-			}
-		}
-	}
+		ListIterator<TrendTopic> it = activeTrends.listIterator();
+	 	while (it.hasNext()) {
+		 	TrendTopic topic = (TrendTopic) it.next();
 	
+		 	for (Trend t : trendsArray) {
+			 	if (topic.isSameTopic(t.getName()) && (topic.getEndTime() == null)) {
+			 		topic.setEndTime();
+			 	}
+		 	}
+	
+		 	if (topic.expired()) {
+			 	// to apo8hkeuoume sth vash dedomenwn me MONGODB
+			 	topic.saveToCollection(db.getCollection("Trends"));
+			 	it.remove();
+		 	}
+	 	}
+	}
 
 }
